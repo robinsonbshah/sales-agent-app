@@ -70,11 +70,24 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.0"
+  flutter_localizations:
+    dependency: transitive
+    description: flutter
+    source: sdk
+    version: "0.0.0"
   flutter_test:
     dependency: "direct dev"
     description: flutter
     source: sdk
     version: "0.0.0"
+  intl:
+    dependency: transitive
+    description:
+      name: intl
+      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.2"
   leak_tracker:
     dependency: transitive
     description:
@@ -131,6 +144,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.16.0"
+  nepali_date_picker:
+    dependency: "direct main"
+    description:
+      name: nepali_date_picker
+      sha256: fb205784133981ba4b48c501428ae32d5eb5bd975792bf2d5f623ec8850b3831
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.0"
+  nepali_utils:
+    dependency: "direct main"
+    description:
+      name: nepali_utils
+      sha256: "686ac878ca844e0ec264a7c0da6404ab7992db5b9120d3ffe1356a3b1de266f4"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.8"
   path:
     dependency: transitive
     description:
@@ -210,4 +239,4 @@ packages:
     version: "15.0.0"
 sdks:
   dart: ">=3.8.1 <4.0.0"
-  flutter: ">=3.18.0-18.0.pre.54"
+  flutter: ">=3.32.0"
