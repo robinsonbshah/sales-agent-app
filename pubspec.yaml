@@ -1,0 +1,13 @@
+name: setobaghapp
+description: A sales agent app with Nepali date support
+version: 1.0.0
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  nepali_date_picker: ^7.0.0
+  nepali_utils: ^3.0.8 
