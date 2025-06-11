@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nepali_date_picker/nepali_date_picker.dart';
 import 'package:nepali_utils/nepali_utils.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Define a constant for the background color
 const Color kAppBgColor = Color(0xFFEFEBC5);
@@ -194,7 +196,7 @@ class _MainNavBarState extends State<MainNavBar> {
   int _selectedIndex = 2; // Check In is default
 
   static final List<Widget> _pages = <Widget>[
-    Center(child: Text('Home (Coming Soon)', style: TextStyle(fontSize: 18))),
+    HomePage(),
     PJPPage(),
     CheckInPage(),
     OutletsPage(),
@@ -217,15 +219,35 @@ class _MainNavBarState extends State<MainNavBar> {
         onTap: _onItemTapped,
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'PJP'),
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.assignment),
+            label: 'PJP',
+          ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.fingerprint),
+            icon: Container(
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withAlpha((0.3 * 255).toInt()),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Icon(Icons.fingerprint, color: Colors.white, size: 36),
+            ),
             label: 'Check In',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Outlets'),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.store),
+            label: 'Outlets',
+          ),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',
           ),
@@ -236,14 +258,14 @@ class _MainNavBarState extends State<MainNavBar> {
 }
 
 class CheckInPage extends StatefulWidget {
-  CheckInPage({super.key});
+  const CheckInPage({super.key});
 
   @override
   State<CheckInPage> createState() => _CheckInPageState();
 }
 
 class _CheckInPageState extends State<CheckInPage> {
-  final String userName = 'Prabin Prasain';
+  final String userName = nimeshProfile['fullName'];
   bool isCheckedIn = false;
   bool isCheckedOut = false;
   String? checkInTime;
@@ -361,12 +383,28 @@ class _CheckInPageState extends State<CheckInPage> {
               children: [
                 const Icon(Icons.calendar_today, size: 18, color: Colors.black),
                 const SizedBox(width: 6),
-                Text(
-                  NepaliDateFormat(
-                    'yyyy-MM-dd',
-                    Language.english,
-                  ).format(NepaliDateTime.now()),
-                  style: const TextStyle(fontSize: 16, color: Colors.black),
+                Builder(
+                  builder: (context) {
+                    final nepaliDate = NepaliDateTime.now();
+                    final dayNames = [
+                      'Sunday',
+                      'Monday',
+                      'Tuesday',
+                      'Wednesday',
+                      'Thursday',
+                      'Friday',
+                      'Saturday',
+                    ];
+                    final dayName = dayNames[nepaliDate.weekday % 7];
+                    final formattedDate = NepaliDateFormat(
+                      'dd-MMMM-yyyy',
+                      Language.english,
+                    ).format(nepaliDate);
+                    return Text(
+                      '$dayName, $formattedDate',
+                      style: const TextStyle(fontSize: 16, color: Colors.black),
+                    );
+                  },
                 ),
               ],
             ),
@@ -485,12 +523,23 @@ class _CheckInPageState extends State<CheckInPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              activity['date'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final nepaliDate = NepaliDateTime.parse(
+                                  activity['date'],
+                                );
+                                final formattedDate = NepaliDateFormat(
+                                  'dd-MMMM-yyyy',
+                                  Language.english,
+                                ).format(nepaliDate);
+                                return Text(
+                                  formattedDate,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -575,7 +624,10 @@ class AttendanceHistoryPage extends StatelessWidget {
                 color: isPresent ? Colors.green : Colors.red,
               ),
               title: Text(
-                item['date'],
+                NepaliDateFormat(
+                  'dd-MMMM-yyyy',
+                  Language.english,
+                ).format(NepaliDateTime.parse(item['date'])),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
@@ -654,7 +706,7 @@ class AttendanceHistoryPage extends StatelessWidget {
 }
 
 class OutletsPage extends StatefulWidget {
-  OutletsPage({super.key});
+  const OutletsPage({super.key});
 
   @override
   State<OutletsPage> createState() => _OutletsPageState();
@@ -662,67 +714,34 @@ class OutletsPage extends StatefulWidget {
 
 class _OutletsPageState extends State<OutletsPage> {
   final TextEditingController _searchController = TextEditingController();
-  final List<Map<String, String>> _outlets = [
-    {
-      'name': 'ABC Store',
-      'location': 'Kathmandu',
-      'contact': '9800000001',
-      'pan': '123456',
-      'category': 'Retail',
-      'class': 'A+',
-      'address': 'Kathmandu',
-      'contactPerson': 'Ram Bahadur',
-      'altMobile': '9800000009',
-      'remarks': 'Good customer',
-    },
-    {
-      'name': 'XYZ Mart',
-      'location': 'Lalitpur',
-      'contact': '9800000002',
-      'pan': '654321',
-      'category': 'Wholesale',
-      'class': 'B',
-      'address': 'Lalitpur',
-      'contactPerson': 'Sita Kumari',
-      'altMobile': '',
-      'remarks': '',
-    },
-    {
-      'name': 'DEF Shop',
-      'location': 'Bhaktapur',
-      'contact': '9800000003',
-      'pan': '',
-      'category': 'Retail',
-      'class': 'A',
-      'address': 'Bhaktapur',
-      'contactPerson': '',
-      'altMobile': '',
-      'remarks': '',
-    },
-  ];
+  final List<Map<String, dynamic>> _outlets = List<Map<String, dynamic>>.from(
+    nimeshProfile['outlets'],
+  );
 
   String _searchText = '';
 
-  TextEditingController _amountController = TextEditingController();
-  TextEditingController _remarksController = TextEditingController();
-  TextEditingController _notThereRemarksController = TextEditingController();
-  List<TextEditingController> _stockControllers = [];
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _remarksController = TextEditingController();
+  final TextEditingController _notThereRemarksController =
+      TextEditingController();
+  final List<TextEditingController> _stockControllers = [];
   List<XFile> _images = [];
   bool? _onLocation = true;
   String? _notThereRemarks;
   String _selectedProduct = 'All';
 
-  List<Map<String, String>> get _filteredOutlets {
+  List<Map<String, dynamic>> get _filteredOutlets {
     if (_searchText.isEmpty) return _outlets;
     return _outlets
         .where(
-          (outlet) =>
-              outlet['name']!.toLowerCase().contains(_searchText.toLowerCase()),
+          (outlet) => (outlet['name'] ?? '').toString().toLowerCase().contains(
+            _searchText.toLowerCase(),
+          ),
         )
         .toList();
   }
 
-  void _openEditOutlet(Map<String, String> outlet) async {
+  void _openEditOutlet(Map<String, dynamic> outlet) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -734,7 +753,7 @@ class _OutletsPageState extends State<OutletsPage> {
   }
 
   void _openAddOutlet() async {
-    final newOutlet = await Navigator.push<Map<String, String>>(
+    final newOutlet = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (context) => AddOutletPage(),
@@ -762,7 +781,7 @@ class _OutletsPageState extends State<OutletsPage> {
     setState(() {});
   }
 
-  void showCheckInSheet(Map<String, String> outlet) {
+  void showCheckInSheet(Map<String, dynamic> outlet) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -851,48 +870,273 @@ class _OutletsPageState extends State<OutletsPage> {
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final outlet = _filteredOutlets[index];
-                          void showCheckInSheet() {
-                            showModalBottomSheet(
+                          void showOutletInfoDialog() {
+                            showDialog(
                               context: context,
-                              isScrollControlled: true,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(24),
-                                ),
-                              ),
-                              builder: (context) => OutletCheckInBottomSheet(
-                                outlet: outlet,
-                                amountController: _amountController,
-                                remarksController: _remarksController,
-                                notThereRemarksController:
-                                    _notThereRemarksController,
-                                stockControllers: _stockControllers,
-                                images: _images,
-                                onLocation: _onLocation,
-                                notThereRemarks: _notThereRemarks,
-                                selectedProduct: _selectedProduct,
-                                onLocationChanged: (val) =>
-                                    setState(() => _onLocation = val),
-                                onNotThereRemarksChanged: (val) =>
-                                    setState(() => _notThereRemarks = val),
-                                onSelectedProductChanged: (val) =>
-                                    setState(() => _selectedProduct = val),
-                                onImagesChanged: (val) =>
-                                    setState(() => _images = val),
-                                onSubmit: _clearModalState,
-                                onBack: _clearModalState,
-                              ),
+                              builder: (context) {
+                                // --- Mock Data for demonstration ---
+                                String selectedProduct = 'All';
+                                // Mock data for each product
+                                Map<String, Map<String, dynamic>> productStats =
+                                    {
+                                      'All': {
+                                        'totalStock': 120,
+                                        'totalLifetimeOrders': 45,
+                                        'totalSalesAmount': 150000,
+                                        'lastDailyCount': 15,
+                                        'lastVisitedDate': '2024-06-10',
+                                        'daysSinceLastVisit': 2,
+                                        'lastOrderPlacedDate': '2024-06-08',
+                                        'dueAmount': 5000,
+                                        'lastPaidAmount': 2000,
+                                        'lastPaidDate': '2024-06-09',
+                                        'totalSalesThisMonth': -32,
+                                      },
+                                      'Seto Bagh': {
+                                        'totalStock': 60,
+                                        'totalLifetimeOrders': 20,
+                                        'totalSalesAmount': 70000,
+                                        'lastDailyCount': 7,
+                                        'lastVisitedDate': '2024-06-09',
+                                        'daysSinceLastVisit': 3,
+                                        'lastOrderPlacedDate': '2024-06-07',
+                                        'dueAmount': 2000,
+                                        'lastPaidAmount': 1000,
+                                        'lastPaidDate': '2024-06-08',
+                                        'totalSalesThisMonth': -15,
+                                      },
+                                      'Sarangi': {
+                                        'totalStock': 60,
+                                        'totalLifetimeOrders': 25,
+                                        'totalSalesAmount': 80000,
+                                        'lastDailyCount': 8,
+                                        'lastVisitedDate': '2024-06-10',
+                                        'daysSinceLastVisit': 2,
+                                        'lastOrderPlacedDate': '2024-06-08',
+                                        'dueAmount': 3000,
+                                        'lastPaidAmount': 1200,
+                                        'lastPaidDate': '2024-06-09',
+                                        'totalSalesThisMonth': -17,
+                                      },
+                                    };
+                                // --- End Mock Data ---
+                                return StatefulBuilder(
+                                  builder: (context, setModalState) {
+                                    final stats =
+                                        productStats[selectedProduct]!;
+                                    return AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      contentPadding: const EdgeInsets.fromLTRB(
+                                        24,
+                                        24,
+                                        24,
+                                        16,
+                                      ),
+                                      content: SingleChildScrollView(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.store,
+                                                  color: Colors.orange,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    outlet['name']! ?? '',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 18,
+                                                    ),
+                                                  ),
+                                                ),
+                                                DropdownButton<String>(
+                                                  value: selectedProduct,
+                                                  items:
+                                                      [
+                                                        'All',
+                                                        'Seto Bagh',
+                                                        'Sarangi',
+                                                      ].map((String value) {
+                                                        return DropdownMenuItem<
+                                                          String
+                                                        >(
+                                                          value: value,
+                                                          child: Text(value),
+                                                        );
+                                                      }).toList(),
+                                                  onChanged: (val) {
+                                                    if (val != null) {
+                                                      setModalState(
+                                                        () => selectedProduct =
+                                                            val,
+                                                      );
+                                                    }
+                                                  },
+                                                  underline: SizedBox(),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 16),
+                                            // Group 1
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFF7F7FA),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  _OutletStatRow(
+                                                    label: 'Total Stock',
+                                                    value: stats['totalStock']
+                                                        .toString(),
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label:
+                                                        'Total Lifetime Orders',
+                                                    value:
+                                                        stats['totalLifetimeOrders']
+                                                            .toString(),
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label:
+                                                        'Total Sales in Amount',
+                                                    value:
+                                                        'NPR ${stats['totalSalesAmount']}',
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label:
+                                                        'Total Sales This Month',
+                                                    value:
+                                                        stats['totalSalesThisMonth']
+                                                            .toString(),
+                                                    bold: true,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            // Group 2
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFF7F7FA),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  _OutletStatRow(
+                                                    label: 'Last Daily Count',
+                                                    value:
+                                                        stats['lastDailyCount']
+                                                            .toString(),
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label: 'Last Visited',
+                                                    value:
+                                                        '${stats['lastVisitedDate']} (${stats['daysSinceLastVisit']} days ago)',
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label: 'Last Order Placed',
+                                                    value:
+                                                        stats['lastOrderPlacedDate'],
+                                                    bold: true,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            // Group 3
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFF7F7FA),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  _OutletStatRow(
+                                                    label: 'Due Amount',
+                                                    value:
+                                                        'NPR ${stats['dueAmount']}',
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label: 'Last Paid Amount',
+                                                    value:
+                                                        'NPR ${stats['lastPaidAmount']}',
+                                                    bold: true,
+                                                  ),
+                                                  _OutletStatRow(
+                                                    label: 'Last Paid Date',
+                                                    value:
+                                                        stats['lastPaidDate'],
+                                                    bold: true,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: const Text(
+                                                    'CLOSE',
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
                             );
                           }
 
-                          return GestureDetector(
-                            onTap: showCheckInSheet,
-                            child: Card(
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
+                          return Card(
+                            color: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: showOutletInfoDialog,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8.0,
@@ -912,7 +1156,7 @@ class _OutletsPageState extends State<OutletsPage> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            outlet['name']!,
+                                            outlet['name']! ?? '',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -929,7 +1173,7 @@ class _OutletsPageState extends State<OutletsPage> {
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  outlet['location']!,
+                                                  outlet['location']! ?? '',
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                     color: Colors.black54,
@@ -964,7 +1208,7 @@ class _OutletsPageState extends State<OutletsPage> {
                                       borderRadius: BorderRadius.circular(24),
                                       child: InkWell(
                                         borderRadius: BorderRadius.circular(24),
-                                        onTap: showCheckInSheet,
+                                        onTap: () => _openEditOutlet(outlet),
                                         child: const Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Icon(
@@ -989,15 +1233,27 @@ class _OutletsPageState extends State<OutletsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.orange,
-        child: const Icon(Icons.add),
         onPressed: _openAddOutlet,
+        child: const Icon(Icons.add),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _amountController.dispose();
+    _remarksController.dispose();
+    _notThereRemarksController.dispose();
+    for (final c in _stockControllers) {
+      c.dispose();
+    }
+    super.dispose();
   }
 }
 
 class EditOutletPage extends StatefulWidget {
-  final Map<String, String> outlet;
+  final Map<String, dynamic> outlet;
   const EditOutletPage({super.key, required this.outlet});
 
   @override
@@ -1013,6 +1269,10 @@ class _EditOutletPageState extends State<EditOutletPage> {
   late TextEditingController contactPersonController;
   late TextEditingController mobileController;
   late TextEditingController altMobileController;
+
+  bool contactPersonUpdated = false;
+  bool mobileUpdated = false;
+  bool altMobileUpdated = false;
 
   final List<String> categories = ['Retail', 'Wholesale', 'Supermarket'];
   final List<String> classes = ['A+', 'A', 'B', 'C'];
@@ -1032,6 +1292,37 @@ class _EditOutletPageState extends State<EditOutletPage> {
     altMobileController = TextEditingController(
       text: widget.outlet['altMobile'],
     );
+    contactPersonUpdated = widget.outlet['contactPersonUpdated'] == 'true';
+    mobileUpdated = widget.outlet['mobileUpdated'] == 'true';
+    altMobileUpdated = widget.outlet['altMobileUpdated'] == 'true';
+  }
+
+  void _updateOutlet() {
+    setState(() {
+      if (!contactPersonUpdated &&
+          contactPersonController.text !=
+              (widget.outlet['contactPerson'] ?? '')) {
+        widget.outlet['contactPerson'] = contactPersonController.text;
+        widget.outlet['contactPersonUpdated'] = 'true';
+        contactPersonUpdated = true;
+      }
+      if (!mobileUpdated &&
+          mobileController.text != (widget.outlet['contact'] ?? '')) {
+        widget.outlet['contact'] = mobileController.text;
+        widget.outlet['mobileUpdated'] = 'true';
+        mobileUpdated = true;
+      }
+      if (!altMobileUpdated &&
+          altMobileController.text != (widget.outlet['altMobile'] ?? '')) {
+        widget.outlet['altMobile'] = altMobileController.text;
+        widget.outlet['altMobileUpdated'] = 'true';
+        altMobileUpdated = true;
+      }
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Outlet updated (mock)')));
+    Navigator.pop(context);
   }
 
   @override
@@ -1109,19 +1400,37 @@ class _EditOutletPageState extends State<EditOutletPage> {
               const Text('Contact Person'),
               TextField(
                 controller: contactPersonController,
-                decoration: const InputDecoration(isDense: true),
+                readOnly: contactPersonUpdated,
+                decoration: InputDecoration(
+                  isDense: true,
+                  suffixIcon: contactPersonUpdated
+                      ? const Icon(Icons.lock, color: Colors.grey)
+                      : null,
+                ),
               ),
               const SizedBox(height: 16),
               const Text('Mobile No.'),
               TextField(
                 controller: mobileController,
-                decoration: const InputDecoration(isDense: true),
+                readOnly: mobileUpdated,
+                decoration: InputDecoration(
+                  isDense: true,
+                  suffixIcon: mobileUpdated
+                      ? const Icon(Icons.lock, color: Colors.grey)
+                      : null,
+                ),
               ),
               const SizedBox(height: 16),
               const Text('Alternate Mobile No.'),
               TextField(
                 controller: altMobileController,
-                decoration: const InputDecoration(isDense: true),
+                readOnly: altMobileUpdated,
+                decoration: InputDecoration(
+                  isDense: true,
+                  suffixIcon: altMobileUpdated
+                      ? const Icon(Icons.lock, color: Colors.grey)
+                      : null,
+                ),
               ),
               const SizedBox(height: 24),
               Center(
@@ -1155,11 +1464,12 @@ class _EditOutletPageState extends State<EditOutletPage> {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Outlet updated (mock)')),
-                    );
-                  },
+                  onPressed:
+                      (contactPersonUpdated &&
+                          mobileUpdated &&
+                          altMobileUpdated)
+                      ? null
+                      : _updateOutlet,
                   child: const Text(
                     'UPDATE',
                     style: TextStyle(
@@ -1211,6 +1521,9 @@ class _AddOutletPageState extends State<AddOutletPage> {
       'contactPerson': contactPersonController.text,
       'altMobile': altMobileController.text,
       'remarks': '',
+      'contactPersonUpdated': 'false',
+      'mobileUpdated': 'false',
+      'altMobileUpdated': 'false',
     });
     ScaffoldMessenger.of(
       context,
@@ -1359,39 +1672,122 @@ class _AddOutletPageState extends State<AddOutletPage> {
 }
 
 class PJPPage extends StatefulWidget {
-  PJPPage({super.key});
+  const PJPPage({super.key});
 
   @override
   State<PJPPage> createState() => _PJPPageState();
 }
 
 class _PJPPageState extends State<PJPPage> {
-  final List<Map<String, String>> pjpList = [
-    {'name': 'ABC Store', 'location': 'Kathmandu', 'contact': '9800000001'},
-    {'name': 'XYZ Mart', 'location': 'Lalitpur', 'contact': '9800000002'},
-    {'name': 'DEF Shop', 'location': 'Bhaktapur', 'contact': '9800000003'},
-  ];
   NepaliDateTime selectedDate = NepaliDateTime.now();
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
+  final String routeName = 'Route 1'; // Always Route 1 for testing
 
-  TextEditingController _amountController = TextEditingController();
-  TextEditingController _remarksController = TextEditingController();
-  TextEditingController _notThereRemarksController = TextEditingController();
-  List<TextEditingController> _stockControllers = [];
-  List<XFile> _images = [];
-  bool? _onLocation = true;
-  String? _notThereRemarks;
-  String _selectedProduct = 'All';
+  @override
+  void initState() {
+    super.initState();
+    _loadPJPData();
+  }
 
-  List<Map<String, String>> get _filteredPjpList {
-    if (_searchText.isEmpty) return pjpList;
-    return pjpList
+  Future<void> _loadPJPData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dateKey = this.dateKey;
+    final pjpList = prefs.getStringList('pjpPlans_$dateKey');
+    if (pjpList != null) {
+      pjpPlans[dateKey] = pjpList;
+    }
+    final visitStatusMap = prefs.getStringList('pjpVisitStatus_$dateKey') ?? [];
+    for (final entry in visitStatusMap) {
+      final parts = entry.split('|');
+      if (parts.length == 2) {
+        pjpVisitStatus['$dateKey|${parts[0]}'] = parts[1] == '1';
+      }
+    }
+    setState(() {});
+  }
+
+  Future<void> _savePJPPlans() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dateKey = this.dateKey;
+    await prefs.setStringList('pjpPlans_$dateKey', pjpPlans[dateKey] ?? []);
+  }
+
+  Future<void> _saveVisitStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dateKey = this.dateKey;
+    final entries = pjpVisitStatus.entries
+        .where((e) => e.key.startsWith('$dateKey|'))
+        .map((e) => '${e.key.split('|')[1]}|${e.value ? '1' : '0'}')
+        .toList();
+    await prefs.setStringList('pjpVisitStatus_$dateKey', entries);
+  }
+
+  List<Map<String, dynamic>> get allRoute1Outlets {
+    return List<Map<String, dynamic>>.from(
+      nimeshProfile['outlets'] ?? [],
+    ).where((o) => o['routeId'] == 1).toList();
+  }
+
+  String get dateKey {
+    final d = selectedDate;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  List<Map<String, dynamic>> get todaysPJPOutlets {
+    final plannedNames =
+        pjpPlans[dateKey] ??
+        allRoute1Outlets.map((o) => o['name'] as String).toList();
+    return allRoute1Outlets
+        .where((o) => plannedNames.contains(o['name']))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get searchResults {
+    if (_searchText.isEmpty) return todaysPJPOutlets;
+    final allOutlets = List<Map<String, dynamic>>.from(
+      nimeshProfile['outlets'] ?? [],
+    );
+    return allOutlets
         .where(
-          (outlet) =>
-              outlet['name']!.toLowerCase().contains(_searchText.toLowerCase()),
+          (o) => (o['name'] ?? '').toString().toLowerCase().contains(
+            _searchText.toLowerCase(),
+          ),
         )
         .toList();
+  }
+
+  bool isInTodaysPJP(String outletName) {
+    final plannedNames =
+        pjpPlans[dateKey] ??
+        allRoute1Outlets.map((o) => o['name'] as String).toList();
+    return plannedNames.contains(outletName);
+  }
+
+  bool isVisited(String outletName) {
+    return pjpVisitStatus['$dateKey|$outletName'] == true;
+  }
+
+  void _addToTodaysPJP(String outletName) async {
+    setState(() {
+      final planned =
+          pjpPlans[dateKey] ??
+          allRoute1Outlets.map((o) => o['name'] as String).toList();
+      if (!planned.contains(outletName)) {
+        planned.add(outletName);
+        pjpPlans[dateKey] = planned;
+      }
+      _searchText = '';
+      _searchController.clear();
+    });
+    await _savePJPPlans();
+  }
+
+  void _markVisited(String outletName) async {
+    setState(() {
+      pjpVisitStatus['$dateKey|$outletName'] = true;
+    });
+    await _saveVisitStatus();
   }
 
   void _pickDate() async {
@@ -1406,11 +1802,380 @@ class _PJPPageState extends State<PJPPage> {
       setState(() {
         selectedDate = picked;
       });
+      await _loadPJPData();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final showSearchResults = _searchText.isNotEmpty;
+    final listToShow = showSearchResults ? searchResults : todaysPJPOutlets;
+    return Scaffold(
+      backgroundColor: kAppBgColor,
+      body: Column(
+        children: [
+          // Orange banner
+          Container(
+            width: double.infinity,
+            color: Colors.orange,
+            padding: const EdgeInsets.only(top: 48, bottom: 16),
+            child: const Center(
+              child: Text(
+                'PJP Lists',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+              ),
+            ),
+          ),
+          // Date selector and route name row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: GestureDetector(
+                    onTap: _pickDate,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange, width: 1.2),
+                      ),
+                      child: Text(
+                        '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange, width: 1.2),
+                    ),
+                    child: Text(
+                      routeName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                hintText: 'Search PJP',
+                prefixIcon: Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchText = val;
+                });
+              },
+            ),
+          ),
+          // PJP List
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: listToShow.length,
+              itemBuilder: (context, idx) {
+                final outlet = listToShow[idx];
+                final outletName = outlet['name'] ?? '';
+                final inPJP = isInTodaysPJP(outletName);
+                final visited = isVisited(outletName);
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 12,
+                    ),
+                    leading: const Icon(
+                      Icons.store,
+                      color: Colors.orange,
+                      size: 32,
+                    ),
+                    title: Text(
+                      outlet['name'] ?? '',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          outlet['location'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: showSearchResults && !inPJP
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.add_circle,
+                              color: Colors.green,
+                            ),
+                            onPressed: () => _addToTodaysPJP(outletName),
+                          )
+                        : visited
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.call,
+                                  color: Colors.green,
+                                ),
+                                onPressed: () =>
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Calling ${outlet['contact']} (mock)',
+                                        ),
+                                      ),
+                                    ),
+                              ),
+                              const SizedBox(width: 4),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () async {
+                                    // Simulate check-in and mark as visited
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            CheckInPageForOutlet(
+                                              outlet: outlet,
+                                            ),
+                                      ),
+                                    );
+                                    _markVisited(outletName);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- CHECK IN PAGE FOR OUTLET (as per screenshot) ---
+class CheckInPageForOutlet extends StatefulWidget {
+  final Map<String, dynamic> outlet;
+  const CheckInPageForOutlet({super.key, required this.outlet});
+
+  @override
+  State<CheckInPageForOutlet> createState() => _CheckInPageForOutletState();
+}
+
+class _CheckInPageForOutletState extends State<CheckInPageForOutlet> {
+  bool isOnLocation = true;
+  final TextEditingController paymentController = TextEditingController();
+  final TextEditingController remarksController = TextEditingController();
+  final TextEditingController notThereReasonController =
+      TextEditingController();
+  final List<String> products = ['All']; // Add more if needed
+  String selectedProduct = 'All';
+  bool expandStock = false;
+  bool expandOrder = false;
+  bool expandReturn = false;
+
+  final GlobalKey _stockSectionKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+
+  // For not-there dialog
+  Future<void> _showNotThereDialog() async {
+    notThereReasonController.clear();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Submit Reason'),
+          content: TextField(
+            controller: notThereReasonController,
+            decoration: const InputDecoration(
+              hintText: 'Please provide a reason...',
+            ),
+            maxLines: 2,
+          ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (notThereReasonController.text.trim().isEmpty) return;
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool _validateStockFields() {
+    final stockTableState = _stockSectionKey.currentState as _StockTableState?;
+    if (stockTableState == null) return false;
+    return stockTableState.validateFields();
+  }
+
+  void _scrollToStockSection() {
+    final ctx = _stockSectionKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  Future<void> _handleYesIAm() async {
+    final outletLat = widget.outlet['latitude'];
+    final outletLng = widget.outlet['longitude'];
+    if (outletLat == null || outletLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No GPS location set for this outlet.')),
+      );
+      return;
+    }
+    LocationPermission permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location permission denied.')),
+      );
+      return;
+    }
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    double distance = Geolocator.distanceBetween(
+      outletLat,
+      outletLng,
+      position.latitude,
+      position.longitude,
+    );
+    if (distance <= 20) {
+      setState(() {
+        isOnLocation = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are at the outlet location.')),
+      );
+      // Proceed with check-in logic
+    } else {
+      setState(() {
+        isOnLocation = false;
+      });
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Not at Outlet'),
+          content: Text(
+            'You are not within 20 meters of the outlet location. Please provide a reason.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = {
+      'totalStock': 120,
+      'totalSoldThisMonth': -32,
+      'totalReturned': 7,
+      'lastDailyCount': 15,
+      'lastVisitedDate': '2082-02-20',
+      'daysSinceLastVisit': '2',
+    };
     return Scaffold(
       backgroundColor: kAppBgColor,
       appBar: AppBar(
@@ -1418,243 +2183,475 @@ class _PJPPageState extends State<PJPPage> {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'PJP Lists',
+          'Check In',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: _pickDate,
-                child: SizedBox(
-                  height: 48,
-                  width: double.infinity,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange, width: 1.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today, color: Colors.orange),
-                        const SizedBox(width: 8),
-                        Text(
-                          NepaliDateFormat(
-                            'yyyy-MM-dd',
-                            Language.english,
-                          ).format(selectedDate),
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Are you on the location? label
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8.0, left: 2),
+              child: Text(
+                'Are you on the location?',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+            ),
+            // Location status toggle
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isOnLocation
+                            ? Colors.black
+                            : Colors.grey[300],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ],
+                      ),
+                      onPressed: _handleYesIAm,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Yes, I am',
+                            style: TextStyle(
+                              color: isOnLocation ? Colors.white : Colors.black,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (isOnLocation)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 48,
-                width: double.infinity,
-                child: TextFormField(
-                  controller: _searchController,
-                  style: const TextStyle(fontSize: 16),
-                  onChanged: (val) => setState(() => _searchText = val),
-                  decoration: InputDecoration(
-                    hintText: 'Search PJP',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 0,
-                      horizontal: 0,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.orange, width: 1.5),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: !isOnLocation
+                            ? Colors.black
+                            : Colors.grey[300],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () async {
+                        setState(() {
+                          isOnLocation = false;
+                        });
+                        await _showNotThereDialog();
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "I'm not",
+                            style: TextStyle(
+                              color: !isOnLocation
+                                  ? Colors.white
+                                  : Colors.black,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (!isOnLocation)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Icon(
+                                Icons.radio_button_unchecked,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _filteredPjpList.isEmpty
-                    ? const Center(child: Text('No outlets found.'))
-                    : ListView.separated(
-                        itemCount: _filteredPjpList.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final outlet = _filteredPjpList[index];
-                          void showCheckInSheet() {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PJPCheckInPage(
-                                  outlet: outlet,
-                                  amountController: _amountController,
-                                  remarksController: _remarksController,
-                                  notThereRemarksController:
-                                      _notThereRemarksController,
-                                  stockControllers: _stockControllers,
-                                  images: _images,
-                                  onLocation: _onLocation,
-                                  notThereRemarks: _notThereRemarks,
-                                  selectedProduct: _selectedProduct,
-                                  onLocationChanged: (val) =>
-                                      setState(() => _onLocation = val),
-                                  onNotThereRemarksChanged: (val) =>
-                                      setState(() => _notThereRemarks = val),
-                                  onSelectedProductChanged: (val) =>
-                                      setState(() => _selectedProduct = val),
-                                  onImagesChanged: (val) =>
-                                      setState(() => _images = val),
-                                  onSubmit: _clearModalState,
-                                  onBack: _clearModalState,
-                                ),
-                              ),
-                            );
-                          }
-
-                          return GestureDetector(
-                            onTap: showCheckInSheet,
-                            child: Card(
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8.0,
-                                  horizontal: 8.0,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.store,
-                                      color: Colors.orange,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            outlet['name']!,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.location_on,
-                                                color: Colors.grey,
-                                                size: 16,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  outlet['location']!,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.black54,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.call,
-                                        color: Colors.green,
-                                      ),
-                                      onPressed: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Call (mock)'),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Material(
-                                      color: Color(0xFFFFB800),
-                                      borderRadius: BorderRadius.circular(24),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(24),
-                                        onTap: showCheckInSheet,
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Icon(
-                                            Icons.arrow_forward_ios,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+            ),
+            // (No inline reason box anymore)
+            const SizedBox(height: 16),
+            // Outlet card
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.store, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.outlet['name'] ?? '',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Spacer(),
+                      DropdownButton<String>(
+                        value: selectedProduct,
+                        items: products.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              selectedProduct = val;
+                            });
+                          }
                         },
+                        underline: const SizedBox(),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Location: ${widget.outlet['location'] ?? ''}'),
+                  Text('Contact: ${widget.outlet['contact'] ?? ''}'),
+                  const SizedBox(height: 8),
+                  // Stats table
+                  Table(
+                    columnWidths: const {
+                      0: FlexColumnWidth(2),
+                      1: FlexColumnWidth(1),
+                    },
+                    children: [
+                      TableRow(
+                        children: [
+                          Text('Total Stock'),
+                          Text(stats['totalStock'].toString()),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          Text('Total Sold This Month'),
+                          Text(stats['totalSoldThisMonth'].toString()),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          Text('Total Returned'),
+                          Text(stats['totalReturned'].toString()),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          Text('Last Daily Count'),
+                          Text(stats['lastDailyCount'].toString()),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          Text('Last Visited Date'),
+                          Text(
+                            '${stats['lastVisitedDate']} (${stats['daysSinceLastVisit']} days ago)',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+            // Expandable sections
+            _ExpandableSection(
+              title: 'Daily Stock Count *',
+              expanded: expandStock,
+              onHeaderTap: () => setState(() => expandStock = !expandStock),
+              child: expandStock
+                  ? Column(
+                      children: [
+                        _StockTable(
+                          key: _stockSectionKey,
+                          group1: 'Sarangi',
+                          group2: 'Seto Bagh',
+                          controllers: [],
+                          numberOnly: true,
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            _ExpandableSection(
+              title: 'Order Management',
+              expanded: expandOrder,
+              onHeaderTap: () => setState(() => expandOrder = !expandOrder),
+              child: expandOrder
+                  ? Column(
+                      children: [
+                        _StockTable(
+                          group1: 'Sarangi',
+                          group2: 'Seto Bagh',
+                          controllers: [],
+                          numberOnly: true,
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            _ExpandableSection(
+              title: 'Return',
+              expanded: expandReturn,
+              onHeaderTap: () => setState(() => expandReturn = !expandReturn),
+              child: expandReturn
+                  ? Column(
+                      children: [
+                        _StockTable(
+                          group1: 'Sarangi',
+                          group2: 'Seto Bagh',
+                          controllers: [],
+                          numberOnly: true,
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            // Payment Collected
+            const Text(
+              'Payment Collected',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: paymentController,
+              decoration: const InputDecoration(
+                hintText: 'Amount in numbers...',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: 12),
+            // Remarks
+            const Text('Remarks'),
+            const SizedBox(height: 4),
+            TextField(
+              controller: remarksController,
+              decoration: const InputDecoration(
+                hintText: 'Your Remarks Here',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Attach Image section (moved here)
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade100),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  const Icon(Icons.camera_alt, color: Colors.green, size: 36),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Attach Image',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'selected: 0 images',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: () async {
+                  if (!_validateStockFields()) {
+                    setState(() {
+                      expandStock = true;
+                    });
+                    _scrollToStockSection();
+                    await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        title: const Text(
+                          'Incomplete Entry',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        content: const SizedBox(
+                          width: 260,
+                          child: Text(
+                            'Please input daily stock count',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        actionsAlignment: MainAxisAlignment.center,
+                        actions: [
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              backgroundColor: Colors.orange,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
+                            ),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text(
+                              'OK',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+                  // Mock submit action
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Submitted (mock)')),
+                  );
+                },
+                child: const Text(
+                  'Submit',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  void _clearModalState() {
-    _amountController.clear();
-    _remarksController.clear();
-    _notThereRemarksController.clear();
-    for (final c in _stockControllers) {
-      c.clear();
-    }
-    _images.clear();
-    _onLocation = true;
-    _notThereRemarks = null;
-    _selectedProduct = 'All';
-    setState(() {});
+class _ExpandableSection extends StatelessWidget {
+  final String title;
+  final Widget? child;
+  final bool expanded;
+  final VoidCallback onHeaderTap;
+  const _ExpandableSection({
+    required this.title,
+    this.child,
+    this.expanded = false,
+    required this.onHeaderTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: onHeaderTap,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Color(0xFFFFF3E0),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                  bottom: Radius.circular(12),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              child: Row(
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
+          ),
+          if (expanded && child != null)
+            Padding(padding: const EdgeInsets.all(12.0), child: child!),
+        ],
+      ),
+    );
   }
 }
 
 class OutletCheckInBottomSheet extends StatefulWidget {
-  final Map<String, String> outlet;
+  final Map<String, dynamic> outlet;
   final TextEditingController amountController;
   final TextEditingController remarksController;
   final TextEditingController notThereRemarksController;
@@ -1696,6 +2693,35 @@ class OutletCheckInBottomSheet extends StatefulWidget {
 class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
   @override
   Widget build(BuildContext context) {
+    // --- Mock Data for demonstration ---
+    final int totalStock = 120;
+    final int totalReturned = 7;
+    final int lastDailyCount = 15;
+    final String lastVisitedDateString = NepaliDateFormat(
+      'yyyy-MM-dd',
+      Language.english,
+    ).format(NepaliDateTime.now().subtract(Duration(days: 2)));
+    // Mock daily stock counts for the current Nepali month
+    final NepaliDateTime today = NepaliDateTime.now();
+    final List<int> dailyCounts = [
+      10,
+      12,
+      8,
+      9,
+      11,
+      13,
+      15,
+      10,
+      12,
+      14,
+      9,
+      8,
+      10,
+      11,
+    ]; // mock for days so far
+    final int totalSoldThisMonth =
+        totalStock - dailyCounts.reduce((a, b) => a + b);
+    // --- End Mock Data ---
     return Material(
       color: Colors.white,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -1786,7 +2812,7 @@ class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
                           showDialog<String>(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('Reason for not being there'),
+                              title: const Text('Submit Reason'),
                               content: TextField(
                                 controller: widget.notThereRemarksController,
                                 decoration: const InputDecoration(
@@ -1795,10 +2821,6 @@ class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
                                 autofocus: true,
                               ),
                               actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Cancel'),
-                                ),
                                 ElevatedButton(
                                   onPressed: () {
                                     Navigator.pop(
@@ -1897,8 +2919,9 @@ class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
                                       );
                                     }).toList(),
                                     onChanged: (val) {
-                                      if (val != null)
+                                      if (val != null) {
                                         widget.onSelectedProductChanged(val);
+                                      }
                                     },
                                     underline: SizedBox(),
                                     style: const TextStyle(
@@ -1916,36 +2939,29 @@ class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
                                 'Contact: ${widget.outlet['contact'] ?? ''}',
                               ),
                               const Divider(height: 24),
-                              _OutletStatRow(label: 'Total Stock', value: '0'),
                               _OutletStatRow(
-                                label: 'Last Order Placed',
-                                value: '- (-)',
-                              ),
-                              _OutletStatRow(
-                                label: 'Due Amount',
-                                value: 'NPR 0',
+                                label: 'Total Stock',
+                                value: totalStock.toString(),
                                 bold: true,
                               ),
                               _OutletStatRow(
-                                label: 'Last Paid Amount',
-                                value: 'NPR 0',
+                                label: 'Total Sold This Month',
+                                value: totalSoldThisMonth.toString(),
                                 bold: true,
                               ),
                               _OutletStatRow(
-                                label: 'Last Paid Date',
-                                value: '- (-)',
+                                label: 'Total Returned',
+                                value: totalReturned.toString(),
+                                bold: true,
                               ),
                               _OutletStatRow(
-                                label: 'Last Visited',
-                                value: '- (-)',
+                                label: 'Last Daily Count',
+                                value: lastDailyCount.toString(),
+                                bold: true,
                               ),
                               _OutletStatRow(
-                                label: 'Total Lifetime Orders',
-                                value: '0',
-                              ),
-                              _OutletStatRow(
-                                label: 'Total Sales in Amount',
-                                value: 'NPR 0',
+                                label: 'Last Visited Date',
+                                value: lastVisitedDateString,
                                 bold: true,
                               ),
                             ],
@@ -1980,30 +2996,39 @@ class _OutletCheckInBottomSheetState extends State<OutletCheckInBottomSheet> {
                 // ),
                 _ExpandableSection(
                   title: 'Daily Stock Count *',
+                  expanded: false,
+                  onHeaderTap: () {},
                   child: _StockTable(
                     group1: 'Sarangi',
                     group2: 'Seto Bagh',
-                    controllers: widget.stockControllers,
+                    controllers: [],
+                    numberOnly: true,
                   ),
                 ),
                 const SizedBox(height: 16),
                 _ExpandableSection(
                   title: 'Order Management',
+                  expanded: false,
+                  onHeaderTap: () {},
                   child: _StockTable(
                     group1: 'Sarangi',
                     group2: 'Seto Bagh',
-                    controllers: widget.stockControllers,
+                    controllers: [],
+                    numberOnly: true,
                   ),
                 ),
                 const SizedBox(height: 16),
                 _ExpandableSection(
                   title: 'Return',
+                  expanded: false,
+                  onHeaderTap: () {},
                   child: Column(
                     children: [
                       _StockTable(
                         group1: 'Sarangi',
                         group2: 'Seto Bagh',
-                        controllers: widget.stockControllers,
+                        controllers: [],
+                        numberOnly: true,
                       ),
                     ],
                   ),
@@ -2197,7 +3222,7 @@ class _OutletStatRow extends StatelessWidget {
   const _OutletStatRow({
     required this.label,
     required this.value,
-    this.bold = false,
+    required this.bold,
   });
   @override
   Widget build(BuildContext context) {
@@ -2220,75 +3245,23 @@ class _OutletStatRow extends StatelessWidget {
   }
 }
 
-class _ExpandableSection extends StatefulWidget {
-  final String title;
-  final Widget child;
-  const _ExpandableSection({required this.title, required this.child});
-  @override
-  State<_ExpandableSection> createState() => _ExpandableSectionState();
-}
-
-class _ExpandableSectionState extends State<_ExpandableSection> {
-  bool expanded = false;
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      margin: EdgeInsets.only(
-        bottom: 8,
-      ), // was EdgeInsets.symmetric(vertical: 8)
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => setState(() => expanded = !expanded),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Color(0xFFFFF3E0),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              child: Row(
-                children: [
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(expanded ? Icons.expand_less : Icons.expand_more),
-                ],
-              ),
-            ),
-          ),
-          if (expanded)
-            Padding(padding: const EdgeInsets.all(12.0), child: widget.child),
-        ],
-      ),
-    );
-  }
-}
-
 class _StockTable extends StatefulWidget {
   final String group1;
   final String group2;
   final List<TextEditingController>? controllers;
+  final bool numberOnly;
   const _StockTable({
+    super.key,
     this.group1 = 'Sarangi',
     this.group2 = 'Seto Bagh',
     this.controllers,
+    this.numberOnly = false,
   });
   @override
   State<_StockTable> createState() => _StockTableState();
 }
 
 class _StockTableState extends State<_StockTable> {
-  // Controllers for each product/size
   final Map<String, TextEditingController> _casesControllers = {};
   final Map<String, TextEditingController> _bottlesControllers = {};
   final Map<String, int> _caseToBottle = {
@@ -2297,7 +3270,7 @@ class _StockTableState extends State<_StockTable> {
     '180ML': 48,
   };
   final List<String> sizes = ['750ML', '375ML', '180ML'];
-  String? _currentlyEditing; // key of the field currently being edited
+  String? _currentlyEditing;
 
   @override
   void initState() {
@@ -2353,186 +3326,122 @@ class _StockTableState extends State<_StockTable> {
     }
   }
 
-  @override
-  void dispose() {
+  bool validateFields() {
+    bool allFilled = true;
     for (final c in _casesControllers.values) {
-      c.dispose();
+      if (c.text.trim().isEmpty) allFilled = false;
     }
     for (final c in _bottlesControllers.values) {
-      c.dispose();
+      if (c.text.trim().isEmpty) allFilled = false;
     }
-    super.dispose();
-  }
-
-  TableRow _headerRow() => TableRow(
-    decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
-    children: [
-      // Removed 'Product Name' header row
-    ],
-  );
-
-  TableRow _groupHeader(String label) => TableRow(
-    children: [
-      TableCell(
-        verticalAlignment: TableCellVerticalAlignment.middle,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 0, top: 12, bottom: 2),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Colors.black,
-            ),
-          ),
-        ),
-      ),
-      const SizedBox.shrink(),
-      const SizedBox.shrink(),
-    ],
-  );
-
-  TableRow _dividerRow() => TableRow(
-    children: [
-      TableCell(
-        verticalAlignment: TableCellVerticalAlignment.middle,
-        child: Container(
-          margin: const EdgeInsets.only(top: 2, bottom: 2),
-          height: 1,
-          color: Color(0xFFE0E0E0),
-        ),
-      ),
-      TableCell(
-        verticalAlignment: TableCellVerticalAlignment.middle,
-        child: Container(
-          margin: const EdgeInsets.only(top: 2, bottom: 2),
-          height: 1,
-          color: Color(0xFFE0E0E0),
-        ),
-      ),
-      TableCell(
-        verticalAlignment: TableCellVerticalAlignment.middle,
-        child: Container(
-          margin: const EdgeInsets.only(top: 2, bottom: 2),
-          height: 1,
-          color: Color(0xFFE0E0E0),
-        ),
-      ),
-    ],
-  );
-
-  TableRow _productRow(String group, String size) {
-    final key = '${group}_$size';
-    return TableRow(
-      // Ensure vertical alignment for all cells
-      decoration: null,
-      children: [
-        TableCell(
-          verticalAlignment: TableCellVerticalAlignment.middle,
-          child: _tableCell(
-            size,
-            align: TextAlign.left,
-            border: false,
-            fontSize: 15,
-          ),
-        ),
-        TableCell(
-          verticalAlignment: TableCellVerticalAlignment.middle,
-          child: _inputCell(_casesControllers[key]!, 'Cases'),
-        ),
-        TableCell(
-          verticalAlignment: TableCellVerticalAlignment.middle,
-          child: _inputCell(_bottlesControllers[key]!, 'Bottles'),
-        ),
-      ],
-    );
-  }
-
-  Widget _tableCell(
-    String text, {
-    bool bold = false,
-    TextAlign align = TextAlign.center,
-    bool border = false,
-    bool header = false,
-    double fontSize = 15,
-  }) {
-    return Container(
-      alignment: align == TextAlign.left
-          ? Alignment.centerLeft
-          : Alignment.center,
-      padding: EdgeInsets.symmetric(vertical: header ? 8 : 4, horizontal: 4),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-          fontSize: fontSize,
-          color: Colors.black,
-        ),
-        textAlign: align,
-      ),
-    );
-  }
-
-  Widget _inputCell(TextEditingController controller, String hint) {
-    return SizedBox(
-      width: 70,
-      height: 36,
-      child: Container(
-        alignment: Alignment.center,
-        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
-        decoration: BoxDecoration(
-          color: Color(0xFFF7F7FA),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Color(0xFFE0E0E0)),
-        ),
-        child: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black54,
-              fontSize: 13,
-            ),
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 4,
-              horizontal: 0,
-            ),
-          ),
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
+    return allFilled;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Table(
-      columnWidths: const {
-        0: FlexColumnWidth(2),
-        1: FlexColumnWidth(1),
-        2: FlexColumnWidth(1),
-      },
-      children: [
-        // _headerRow(), // Removed header row
-        _groupHeader(widget.group1),
-        ...[
-          '750ML',
-          '375ML',
-          '180ML',
-        ].map((size) => _productRow(widget.group1, size)),
-        _dividerRow(),
-        _groupHeader(widget.group2),
-        ...[
-          '750ML',
-          '375ML',
-          '180ML',
-        ].map((size) => _productRow(widget.group2, size)),
-      ],
+    return Card(
+      color: const Color(0xFFF9F6FF),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _groupHeader(widget.group1),
+            ...sizes.map((size) => _productRow(widget.group1, size)),
+            const SizedBox(height: 8),
+            const Divider(thickness: 1, height: 24),
+            _groupHeader(widget.group2),
+            ...sizes.map((size) => _productRow(widget.group2, size)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _groupHeader(String group) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4, left: 2),
+      child: Text(
+        group,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      ),
+    );
+  }
+
+  Widget _productRow(String group, String size) {
+    final key = '${group}_$size';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(size, style: const TextStyle(fontSize: 14)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _casesControllers[key],
+                    decoration: InputDecoration(
+                      hintText: 'Cases',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    keyboardType: widget.numberOnly
+                        ? TextInputType.number
+                        : TextInputType.text,
+                    inputFormatters: widget.numberOnly
+                        ? [FilteringTextInputFormatter.digitsOnly]
+                        : [],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _bottlesControllers[key],
+                    decoration: InputDecoration(
+                      hintText: 'Bottles',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    keyboardType: widget.numberOnly
+                        ? TextInputType.number
+                        : TextInputType.text,
+                    inputFormatters: widget.numberOnly
+                        ? [FilteringTextInputFormatter.digitsOnly]
+                        : [],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2604,6 +3513,7 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = nimeshProfile;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.orange,
@@ -2644,16 +3554,16 @@ class SettingsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'Prabin Prasain',
-                        style: TextStyle(
+                      Text(
+                        profile['fullName'],
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 20,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Sales Agent',
+                        profile['staffType'],
                         style: TextStyle(color: Colors.grey[600], fontSize: 15),
                       ),
                     ],
@@ -2798,6 +3708,7 @@ class ViewProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = nimeshProfile;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -2826,13 +3737,16 @@ class ViewProfilePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Prabin Prasain',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                  Text(
+                    profile['fullName'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Sales Agent',
+                    profile['staffType'],
                     style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                 ],
@@ -2842,38 +3756,30 @@ class ViewProfilePage extends StatelessWidget {
             _ProfileField(
               icon: Icons.phone,
               label: 'Mobile Number',
-              value: '9800000000',
+              value: profile['mobileNumber'],
             ),
             _ProfileField(
               icon: Icons.badge,
               label: 'Role',
-              value: 'Sales Agent',
+              value: profile['staffType'],
             ),
             _ProfileField(
               icon: Icons.category,
-              label: 'Category',
-              value: 'Field Staff',
+              label: 'Level',
+              value: profile['level'].toString(),
             ),
             _ProfileField(
               icon: Icons.people,
               label: 'Reports To',
-              value: 'Bikash Shrestha',
+              value: profile['zoneManagerName'],
             ),
             _ProfileField(
               icon: Icons.apartment,
               label: 'Zone',
-              value: 'Bagmati',
+              value: profile['zone'],
             ),
-            _ProfileField(
-              icon: Icons.map,
-              label: 'Area/Region',
-              value: 'Kathmandu 2',
-            ),
-            _ProfileField(
-              icon: Icons.home,
-              label: 'Address',
-              value: 'Baneshwor, KTM',
-            ),
+            _ProfileField(icon: Icons.map, label: 'Area/Region', value: 'N/A'),
+            _ProfileField(icon: Icons.home, label: 'Address', value: ''),
           ],
         ),
       ),
@@ -2953,6 +3859,35 @@ class PJPCheckInPage extends StatefulWidget {
 class _PJPCheckInPageState extends State<PJPCheckInPage> {
   @override
   Widget build(BuildContext context) {
+    // --- Mock Data for demonstration ---
+    final int totalStock = 120;
+    final int totalReturned = 7;
+    final int lastDailyCount = 15;
+    final String lastVisitedDateString = NepaliDateFormat(
+      'yyyy-MM-dd',
+      Language.english,
+    ).format(NepaliDateTime.now().subtract(Duration(days: 2)));
+    // Mock daily stock counts for the current Nepali month
+    final NepaliDateTime today = NepaliDateTime.now();
+    final List<int> dailyCounts = [
+      10,
+      12,
+      8,
+      9,
+      11,
+      13,
+      15,
+      10,
+      12,
+      14,
+      9,
+      8,
+      10,
+      11,
+    ]; // mock for days so far
+    final int totalSoldThisMonth =
+        totalStock - dailyCounts.reduce((a, b) => a + b);
+    // --- End Mock Data ---
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.orange,
@@ -3031,7 +3966,7 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
                       showDialog<String>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Reason for not being there'),
+                          title: const Text('Submit Reason'),
                           content: TextField(
                             controller: widget.notThereRemarksController,
                             decoration: const InputDecoration(
@@ -3040,10 +3975,6 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
                             autofocus: true,
                           ),
                           actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
                             ElevatedButton(
                               onPressed: () {
                                 Navigator.pop(
@@ -3141,8 +4072,9 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
                                   );
                                 }).toList(),
                                 onChanged: (val) {
-                                  if (val != null)
+                                  if (val != null) {
                                     widget.onSelectedProductChanged(val);
+                                  }
                                 },
                                 underline: SizedBox(),
                                 style: const TextStyle(
@@ -3156,33 +4088,29 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
                           Text('Location: ${widget.outlet['location'] ?? ''}'),
                           Text('Contact: ${widget.outlet['contact'] ?? ''}'),
                           const Divider(height: 24),
-                          _OutletStatRow(label: 'Total Stock', value: '0'),
                           _OutletStatRow(
-                            label: 'Last Order Placed',
-                            value: '- (-)',
-                          ),
-                          _OutletStatRow(
-                            label: 'Due Amount',
-                            value: 'NPR 0',
+                            label: 'Total Stock',
+                            value: totalStock.toString(),
                             bold: true,
                           ),
                           _OutletStatRow(
-                            label: 'Last Paid Amount',
-                            value: 'NPR 0',
+                            label: 'Total Sold This Month',
+                            value: totalSoldThisMonth.toString(),
                             bold: true,
                           ),
                           _OutletStatRow(
-                            label: 'Last Paid Date',
-                            value: '- (-)',
-                          ),
-                          _OutletStatRow(label: 'Last Visited', value: '- (-)'),
-                          _OutletStatRow(
-                            label: 'Total Lifetime Orders',
-                            value: '0',
+                            label: 'Total Returned',
+                            value: totalReturned.toString(),
+                            bold: true,
                           ),
                           _OutletStatRow(
-                            label: 'Total Sales in Amount',
-                            value: 'NPR 0',
+                            label: 'Last Daily Count',
+                            value: lastDailyCount.toString(),
+                            bold: true,
+                          ),
+                          _OutletStatRow(
+                            label: 'Last Visited Date',
+                            value: lastVisitedDateString,
                             bold: true,
                           ),
                         ],
@@ -3217,30 +4145,39 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
             // ),
             _ExpandableSection(
               title: 'Daily Stock Count *',
+              expanded: false,
+              onHeaderTap: () {},
               child: _StockTable(
                 group1: 'Sarangi',
                 group2: 'Seto Bagh',
-                controllers: widget.stockControllers,
+                controllers: [],
+                numberOnly: true,
               ),
             ),
             const SizedBox(height: 16),
             _ExpandableSection(
               title: 'Order Management',
+              expanded: false,
+              onHeaderTap: () {},
               child: _StockTable(
                 group1: 'Sarangi',
                 group2: 'Seto Bagh',
-                controllers: widget.stockControllers,
+                controllers: [],
+                numberOnly: true,
               ),
             ),
             const SizedBox(height: 16),
             _ExpandableSection(
               title: 'Return',
+              expanded: false,
+              onHeaderTap: () {},
               child: Column(
                 children: [
                   _StockTable(
                     group1: 'Sarangi',
                     group2: 'Seto Bagh',
-                    controllers: widget.stockControllers,
+                    controllers: [],
+                    numberOnly: true,
                   ),
                 ],
               ),
@@ -3420,3 +4357,705 @@ class _PJPCheckInPageState extends State<PJPCheckInPage> {
     );
   }
 }
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Use the same mock outlets as OutletsPage
+  final List<Map<String, dynamic>> _outlets = List<Map<String, dynamic>>.from(
+    nimeshProfile['outlets'],
+  );
+
+  List<Map<String, dynamic>> get _incompleteOutlets {
+    final requiredFields = [
+      'name',
+      'location',
+      'contact',
+      'category',
+      'class',
+      'address',
+      'contactPerson',
+      'contact',
+    ];
+    return _outlets.where((outlet) {
+      for (final field in requiredFields) {
+        if ((outlet[field] ?? '').toString().trim().isEmpty) return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String agentName = nimeshProfile['fullName'];
+    final int salesTarget = 200000;
+    final int salesThisMonth = 120000;
+    final double progress = salesThisMonth / salesTarget;
+    final int outletsVisited = 18;
+    final int totalOrders = 25;
+    final double attendancePercent = 92.5;
+    final String lastOrder = '22-Jestha-2082';
+    final String lastPayment = 'NPR 5,000 on 21-Jestha-2082';
+    final String todayStatus = 'Checked In';
+
+    return Scaffold(
+      backgroundColor: kAppBgColor,
+      appBar: AppBar(
+        backgroundColor: Colors.orange,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'Home',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.orange[100],
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.orange,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome,',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        Text(
+                          agentName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 3,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Monthly Sales Progress',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 12,
+                              backgroundColor: Colors.orange[100],
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            '${(progress * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'NPR $salesThisMonth / $salesTarget',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.fingerprint,
+                              color: Colors.green,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              todayStatus,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Today',
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.store, color: Colors.orange, size: 28),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$outletsVisited',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Outlets Visited',
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.shopping_cart,
+                              color: Colors.blue,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$totalOrders',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Orders Placed',
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.attach_money,
+                              color: Colors.deepPurple,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'NPR $salesThisMonth',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Sales This Month',
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user, color: Colors.teal, size: 28),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${attendancePercent.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Attendance',
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Status Report',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.inventory_2,
+                            color: Colors.deepPurple,
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Last Stock Count: 22-Jestha-2082'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.shopping_cart, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text('Last Order: $lastOrder'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.assignment_return,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Last Return: 21-Jestha-2082'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.attach_money,
+                            color: Colors.deepPurple,
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Last Payment: $lastPayment'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Incomplete outlets info card below status report (if any)
+              if (_incompleteOutlets.isNotEmpty)
+                Card(
+                  color: Color(0xFFF7F2FA),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                  margin: const EdgeInsets.only(top: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'The following outlets have incomplete details and should be updated:',
+                          style: TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ..._incompleteOutlets.map(
+                          (o) => Text(
+                            '• ${o['name'] ?? 'Unnamed Outlet'}',
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Nimesh Subedi Staff Profile ---
+final Map<String, dynamic> nimeshProfile = {
+  'fullName': 'Nimesh Subedi',
+  'staffType': 'Sales Agent',
+  'staffCode': 'NS001',
+  'phone': '9800000000',
+  'email': 'nimesh.subedi@example.com',
+  'zone': 'Zone A',
+  'zoneManagerName': 'RSM/ASM Name',
+  'routes': [
+    {'routeId': 1, 'routeName': 'Route 1'},
+    {'routeId': 2, 'routeName': 'Route 2'},
+    {'routeId': 3, 'routeName': 'Route 3'},
+  ],
+  'outlets': [
+    // Route 1
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1A',
+      'name': 'Outlet 1A-1',
+      'contact': '9800000001',
+      'category': 'Retail',
+      'owner': 'Owner 1A-1',
+      'gps': '27.7000,85.3333',
+    },
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1A',
+      'name': 'Outlet 1A-2',
+      'contact': '9800000002',
+      'category': 'Retail',
+      'owner': 'Owner 1A-2',
+      'gps': '27.7001,85.3334',
+    },
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1A',
+      'name': 'Outlet 1A-3',
+      'contact': '9800000003',
+      'category': 'Retail',
+      'owner': 'Owner 1A-3',
+      'gps': '27.7002,85.3335',
+    },
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1B',
+      'name': 'Outlet 1B-1',
+      'contact': '9800000004',
+      'category': 'Retail',
+      'owner': 'Owner 1B-1',
+      'gps': '27.7003,85.3336',
+    },
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1B',
+      'name': 'Outlet 1B-2',
+      'contact': '9800000005',
+      'category': 'Retail',
+      'owner': 'Owner 1B-2',
+      'gps': '27.7004,85.3337',
+    },
+    {
+      'routeId': 1,
+      'routeName': 'Route 1',
+      'location': 'Location 1B',
+      'name': 'Outlet 1B-3',
+      'contact': '9800000006',
+      'category': 'Retail',
+      'owner': 'Owner 1B-3',
+      'gps': '27.7005,85.3338',
+    },
+    // Route 2
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2A',
+      'name': 'Outlet 2A-1',
+      'contact': '9800000011',
+      'category': 'Wholesale',
+      'owner': 'Owner 2A-1',
+      'gps': '27.7010,85.3340',
+    },
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2A',
+      'name': 'Outlet 2A-2',
+      'contact': '9800000012',
+      'category': 'Wholesale',
+      'owner': 'Owner 2A-2',
+      'gps': '27.7011,85.3341',
+    },
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2A',
+      'name': 'Outlet 2A-3',
+      'contact': '9800000013',
+      'category': 'Wholesale',
+      'owner': 'Owner 2A-3',
+      'gps': '27.7012,85.3342',
+    },
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2B',
+      'name': 'Outlet 2B-1',
+      'contact': '9800000014',
+      'category': 'Wholesale',
+      'owner': 'Owner 2B-1',
+      'gps': '27.7013,85.3343',
+    },
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2B',
+      'name': 'Outlet 2B-2',
+      'contact': '9800000015',
+      'category': 'Wholesale',
+      'owner': 'Owner 2B-2',
+      'gps': '27.7014,85.3344',
+    },
+    {
+      'routeId': 2,
+      'routeName': 'Route 2',
+      'location': 'Location 2B',
+      'name': 'Outlet 2B-3',
+      'contact': '9800000016',
+      'category': 'Wholesale',
+      'owner': 'Owner 2B-3',
+      'gps': '27.7015,85.3345',
+    },
+    // Route 3
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3A',
+      'name': 'Outlet 3A-1',
+      'contact': '9800000021',
+      'category': 'Retail',
+      'owner': 'Owner 3A-1',
+      'gps': '27.7020,85.3350',
+    },
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3A',
+      'name': 'Outlet 3A-2',
+      'contact': '9800000022',
+      'category': 'Retail',
+      'owner': 'Owner 3A-2',
+      'gps': '27.7021,85.3351',
+    },
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3A',
+      'name': 'Outlet 3A-3',
+      'contact': '9800000023',
+      'category': 'Retail',
+      'owner': 'Owner 3A-3',
+      'gps': '27.7022,85.3352',
+    },
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3B',
+      'name': 'Outlet 3B-1',
+      'contact': '9800000024',
+      'category': 'Retail',
+      'owner': 'Owner 3B-1',
+      'gps': '27.7023,85.3353',
+    },
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3B',
+      'name': 'Outlet 3B-2',
+      'contact': '9800000025',
+      'category': 'Retail',
+      'owner': 'Owner 3B-2',
+      'gps': '27.7024,85.3354',
+    },
+    {
+      'routeId': 3,
+      'routeName': 'Route 3',
+      'location': 'Location 3B',
+      'name': 'Outlet 3B-3',
+      'contact': '9800000026',
+      'category': 'Retail',
+      'owner': 'Owner 3B-3',
+      'gps': '27.7025,85.3355',
+    },
+  ],
+};
+
+// --- Nimesh Subedi Routes ---
+final List<Map<String, String>> nimeshRoutes = [
+  {'routeName': 'Airport-Tilganga', 'location': 'Airport', 'zone': '3'},
+  {'routeName': 'Airport-Tilganga', 'location': 'Tilganga', 'zone': '3'},
+  {'routeName': 'Anamnagar-Thapagaun', 'location': 'Anamnagar', 'zone': '3'},
+  {'routeName': 'Anamnagar-Thapagaun', 'location': 'Thapagaun', 'zone': '3'},
+  {
+    'routeName': 'Battisputali-Old Baneshwor',
+    'location': 'Battisputali',
+    'zone': '3',
+  },
+  {
+    'routeName': 'Battisputali-Old Baneshwor',
+    'location': 'Old Baneshwor',
+    'zone': '3',
+  },
+  // ... (add more from your list as needed)
+];
+
+// --- Nimesh Subedi Outlets (sample, fill/expand as needed) ---
+final List<Map<String, dynamic>> nimeshOutlets = [
+  {
+    'name': 'Airport Mart',
+    'location': 'Airport',
+    'route': 'Airport-Tilganga',
+    'zone': '3',
+    'contact': '9801111111',
+    'pan': '123456',
+    'category': 'Retail',
+    'class': 'A+',
+    'address': 'Airport Road',
+    'contactPerson': 'Suman Shrestha',
+    'altMobile': '9801111122',
+    'remarks': 'Frequent flyer customers',
+    'assignedTo': 'Nimesh Subedi',
+    'contactPersonUpdated': 'false',
+    'mobileUpdated': 'false',
+    'altMobileUpdated': 'false',
+    'latitude': 27.6975, // Example GPS
+    'longitude': 85.3591,
+  },
+  {
+    'name': 'Tilganga Store',
+    'location': 'Tilganga',
+    'route': 'Airport-Tilganga',
+    'zone': '3',
+    'contact': '9802222222',
+    'pan': '654321',
+    'category': 'Wholesale',
+    'class': 'B',
+    'address': 'Tilganga Marg',
+    'contactPerson': 'Rita Lama',
+    'altMobile': '',
+    'remarks': '',
+    'assignedTo': 'Nimesh Subedi',
+    'contactPersonUpdated': 'false',
+    'mobileUpdated': 'false',
+    'altMobileUpdated': 'false',
+    'latitude': 27.6980, // Example GPS
+    'longitude': 85.3600,
+  },
+];
+
+// --- PJP Plan and Visit Status Data Structures ---
+// Map of date string (yyyy-MM-dd) to list of outlet names for that day's plan
+Map<String, List<String>> pjpPlans = {};
+// Map of 'date|outletName' to visit status (true/false)
+Map<String, bool> pjpVisitStatus = {};
